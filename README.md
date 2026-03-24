@@ -22,7 +22,7 @@ A backend developer internship assignment implementing a scalable REST API with 
 ## Live Hosting: - 
 
 - **Frontend:** https://primetrade-assignment-three.vercel.app
-- **Backend API:** https://zealous-batsheva-mohitio-ed4d9d57.koyeb.app/api/v1
+- **Backend API:** https://zealous-batsheva-mohitio-ed4d9d57.koyeb.app
 - **Swagger Docs:** https://zealous-batsheva-mohitio-ed4d9d57.koyeb.app/api-docs
 
 ## 1. Project Overview
