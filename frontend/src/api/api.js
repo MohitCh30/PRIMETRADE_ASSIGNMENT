@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const API = axios.create({
-  baseURL: "http://localhost:5000/api/v1",
+  baseURL: "https://zealous-batsheva-mohitio-ed4d9d57.koyeb.app",
 });
 
 API.interceptors.request.use((req) => {
