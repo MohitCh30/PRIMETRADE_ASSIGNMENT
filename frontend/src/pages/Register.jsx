@@ -15,7 +15,7 @@ function Register() {
 
     try {
       await axios.post(
-        "http://localhost:5000/api/v1/auth/register",
+        "http://localhost:5000/auth/register",
         { name, email, password }
       );
 
