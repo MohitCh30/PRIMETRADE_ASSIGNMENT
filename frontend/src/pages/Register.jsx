@@ -1,5 +1,5 @@
 import { useState } from "react";
-import axios from "axios";
+import { registerUser } from "../services/authService";
 import { useNavigate, Link } from "react-router-dom";
 
 function Register() {
@@ -12,16 +12,10 @@ function Register() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
     try {
-      await axios.post(
-        "http://localhost:5000/auth/register",
-        { name, email, password }
-      );
-
+      await registerUser({ name, email, password });
       setMessage("Registration successful!");
       setTimeout(() => navigate("/"), 1500);
-
     } catch (err) {
       setMessage(err.response?.data?.message || "Registration failed");
     }
@@ -34,9 +28,7 @@ function Register() {
         <p className="mt-1 text-sm text-zinc-400">PrimeTrade Task Manager</p>
 
         {message && (
-          <div
-            className={`mt-4 text-sm ${message.toLowerCase().includes("successful") ? "text-green-400" : "text-red-400"}`}
-          >
+          <div className={`mt-4 text-sm ${message.toLowerCase().includes("successful") ? "text-green-400" : "text-red-400"}`}>
             {message}
           </div>
         )}

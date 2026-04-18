@@ -1,5 +1,5 @@
 import { useState } from "react";
-import axios from "axios";
+import { loginUser } from "../services/authService";
 import { useNavigate, Link } from "react-router-dom";
 
 function Login() {
@@ -11,14 +11,8 @@ function Login() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
     try {
-      const res = await axios.post(
-        "http://localhost:5000/auth/login",
-        { email, password }
-      );
-
-      localStorage.setItem("token", res.data.token);
+      await loginUser({ email, password });
       navigate("/dashboard");
     } catch (err) {
       setError(err.response?.data?.message || "Login failed");
@@ -61,6 +55,7 @@ function Login() {
           </div>
 
           <button
+            type="submit"
             className="w-full rounded-md bg-amber-500 px-4 py-2 font-semibold text-black hover:bg-amber-400"
             data-testid="login-button"
           >
