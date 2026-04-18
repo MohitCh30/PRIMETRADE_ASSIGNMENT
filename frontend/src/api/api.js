@@ -1,16 +1,14 @@
 import axios from "axios";
 
 const API = axios.create({
-  baseURL: "https://zealous-batsheva-mohitio-ed4d9d57.koyeb.app/api/v1",
+  baseURL: import.meta.env.VITE_API_URL || "http://localhost:5000/api/v1",
 });
 
 API.interceptors.request.use((req) => {
   const token = localStorage.getItem("token");
-
   if (token) {
     req.headers.Authorization = `Bearer ${token}`;
   }
-
   return req;
 });
 
