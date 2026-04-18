@@ -1,1 +1,4 @@
 primetrade_code.zip
+primetrade_code/
+*.zip
+frontend/test-results/
