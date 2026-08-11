@@ -208,22 +208,42 @@ describe("Authentication & task edge cases", () => {
   });
 });
 
-describe("Mass assignment / strict field handling", () => {
-  test("client-supplied user_id on creation is ignored — owner is the authenticated user", async () => {
+describe("Mass assignment — unexpected fields are rejected with 400", () => {
+  test("POST /tasks rejects client-supplied user_id", async () => {
     const { token: tokenA, user: userA } = await registerUser(app, {
       email: "a@example.com",
     });
-    const { token: tokenB } = await registerUser(app, {
-      email: "b@example.com",
-    });
-    const { task } = await createTask(app, tokenA, {
-      title: "Owned by A",
-      extra: { user_id: user_from(tokenB) },
-    });
-    expect(task.user_id).toBe(userA.id);
+    const res = await request(app)
+      .post("/api/v1/tasks")
+      .set("Authorization", `Bearer ${tokenA}`)
+      .send({ title: "Owned by A", user_id: 9999 });
+    expect(res.status).toBe(400);
+    expect(res.body.message).toMatch(/Unexpected field/);
+    // Nothing was created for the attempted foreign owner.
+    expect(state.tasks.every((t) => t.user_id !== 9999)).toBe(true);
+    expect(state.tasks).toHaveLength(0);
+    // Sanity: a clean request for the same user still succeeds and is owned by A.
+    expect(userA.id).toBeDefined();
   });
 
-  test("client-supplied user_id/role/id on update cannot move ownership", async () => {
+  test("POST /tasks rejects role/is_admin/id/created_at extra fields", async () => {
+    const { token: tokenA } = await registerUser(app, { email: "a@example.com" });
+    const res = await request(app)
+      .post("/api/v1/tasks")
+      .set("Authorization", `Bearer ${tokenA}`)
+      .send({
+        title: "Test",
+        description: "x",
+        role: "admin",
+        is_admin: true,
+        id: 12345,
+        created_at: "1970-01-01",
+      });
+    expect(res.status).toBe(400);
+    expect(state.tasks).toHaveLength(0);
+  });
+
+  test("PUT /tasks/:id rejects client-supplied user_id/role and does not change the task", async () => {
     const { token: tokenA, user: userA } = await registerUser(app, {
       email: "a@example.com",
     });
@@ -232,38 +252,50 @@ describe("Mass assignment / strict field handling", () => {
     const res = await request(app)
       .put(`/api/v1/tasks/${task.id}`)
       .set("Authorization", `Bearer ${tokenA}`)
-      .send({
-        title: "Renamed",
-        user_id: 9999,
-        role: "admin",
-        id: 12345,
-      });
-    expect(res.status).toBe(200);
-    expect(res.body.title).toBe("Renamed");
-    expect(res.body.user_id).toBe(userA.id);
-    expect(res.body.id).toBe(task.id);
+      .send({ title: "Renamed", user_id: 9999, role: "admin", id: 12345 });
+    expect(res.status).toBe(400);
 
-    // And the record itself is unchanged w.r.t. ownership
-    expect(state.tasks.find((t) => t.id === task.id).user_id).toBe(userA.id);
+    // The record is unchanged — title survived, ownership intact.
+    const stored = state.tasks.find((t) => t.id === task.id);
+    expect(stored.user_id).toBe(userA.id);
+    expect(stored.title).toBe("A's task");
   });
 
-  test("client-supplied role on registration is ignored", async () => {
-    const res = await request(app)
-      .post("/api/v1/auth/register")
-      .send({
-        name: "Sneaky",
-        email: "sneaky@example.com",
-        password: "Passw0rd!",
-        role: "admin",
-        is_admin: true,
-      });
-    expect(res.status).toBe(201);
-    expect(res.body.user.role).toBe("user");
+  test("POST /auth/register rejects role/is_admin escalation attempts", async () => {
+    const res = await request(app).post("/api/v1/auth/register").send({
+      name: "Sneaky",
+      email: "sneaky@example.com",
+      password: "Passw0rd!",
+      role: "admin",
+      is_admin: true,
+    });
+    expect(res.status).toBe(400);
+    // No privileged account was created.
+    expect(state.users.every((u) => u.email !== "sneaky@example.com")).toBe(true);
   });
 
-  function user_from() {
-    return 9999; // arbitrary foreign id
-  }
+  test("legitimate requests with only documented fields still succeed", async () => {
+    const reg = await request(app).post("/api/v1/auth/register").send({
+      name: "Legit",
+      email: "legit@example.com",
+      password: "Passw0rd!",
+    });
+    expect(reg.status).toBe(201);
+    expect(reg.body.user.role).toBe("user");
+
+    const token = reg.body.token;
+    const created = await request(app)
+      .post("/api/v1/tasks")
+      .set("Authorization", `Bearer ${token}`)
+      .send({ title: "OK", description: "fine" });
+    expect(created.status).toBe(201);
+
+    const updated = await request(app)
+      .put(`/api/v1/tasks/${created.body.id}`)
+      .set("Authorization", `Bearer ${token}`)
+      .send({ title: "OK-2" });
+    expect(updated.status).toBe(200);
+  });
 });
 
 describe("Sensitive data serialization", () => {

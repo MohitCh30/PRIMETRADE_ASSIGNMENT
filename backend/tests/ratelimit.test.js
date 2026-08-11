@@ -16,8 +16,21 @@ beforeEach(() => {
 });
 
 describe("Auth endpoint rate limiting", () => {
-  test("login endpoint returns 429 after the limit is exceeded", async () => {
+  test("login endpoint allows the first 5 then returns 429", async () => {
     // Default limit: 5 per 15 minutes per IP
+    const statuses = [];
+    for (let i = 0; i < 6; i++) {
+      const res = await request(app).post("/api/v1/auth/login").send({
+        email: "no-such-user@example.com",
+        password: "wrong",
+      });
+      statuses.push(res.status);
+    }
+    expect(statuses.slice(0, 5)).toEqual([401, 401, 401, 401, 401]);
+    expect(statuses[5]).toBe(429);
+  });
+
+  test("login 429 response carries the expected message", async () => {
     let last;
     for (let i = 0; i < 6; i++) {
       last = await request(app).post("/api/v1/auth/login").send({
@@ -29,12 +42,12 @@ describe("Auth endpoint rate limiting", () => {
     expect(last.body.message).toMatch(/Too many requests/);
   });
 
-  test("register endpoint returns 429 after the limit is exceeded", async () => {
-    // Default limit: 10 per hour per IP.  The login test above runs first and
+  test("register endpoint allows the first 3 then returns 429", async () => {
+    // Default limit: 3 per hour per IP.  The login test above runs first and
     // exercises a separate path, so these repeated register calls are
     // dedicated to this bucket.
     const statuses = [];
-    for (let i = 0; i < 11; i++) {
+    for (let i = 0; i < 4; i++) {
       const res = await request(app).post("/api/v1/auth/register").send({
         name: `R${i}`,
         email: `rl${i}@example.com`,
@@ -42,7 +55,21 @@ describe("Auth endpoint rate limiting", () => {
       });
       statuses.push(res.status);
     }
-    expect(statuses.slice(0, 10).every((s) => s === 201)).toBe(true);
-    expect(statuses[10]).toBe(429);
+    expect(statuses.slice(0, 3)).toEqual([201, 201, 201]);
+    expect(statuses[3]).toBe(429);
+    expect(statuses[3]).not.toBe(201);
+  });
+
+  test("register 429 response carries the expected message", async () => {
+    let last;
+    for (let i = 0; i < 4; i++) {
+      last = await request(app).post("/api/v1/auth/register").send({
+        name: `R${i}`,
+        email: `rlx${i}@example.com`,
+        password: "Passw0rd!",
+      });
+    }
+    expect(last.status).toBe(429);
+    expect(last.body.message).toMatch(/Too many requests/);
   });
 });

@@ -15,7 +15,7 @@ const loginLimiter = rateLimit({
 const registerLimiter = rateLimit({
   windowMs:
     Number(process.env.REGISTER_RATE_LIMIT_WINDOW_MS) || 60 * 60 * 1000,
-  max: Number(process.env.REGISTER_RATE_LIMIT_MAX) || 10,
+  max: Number(process.env.REGISTER_RATE_LIMIT_MAX) || 3,
   standardHeaders: true,
   legacyHeaders: false,
   message,
