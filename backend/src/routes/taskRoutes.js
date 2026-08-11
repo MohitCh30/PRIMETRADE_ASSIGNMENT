@@ -8,6 +8,7 @@ const router = express.Router();
 router.use(auth);
 
 router.get("/", taskController.getTasks);
+router.get("/:id", taskController.getTask);
 router.post("/", validateTask, taskController.createTask);
 router.put("/:id", validateTask, taskController.updateTask);
 router.delete("/:id", taskController.deleteTask);

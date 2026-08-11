@@ -1,2 +1,11 @@
+# Local secrets / environment
 .env
-node_modules
+.env.*
+!.env.example
+
+# Dependencies
+node_modules/
+
+# Test coverage & logs
+coverage/
+*.log

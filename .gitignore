@@ -1,4 +1,19 @@
-primetrade_code.zip
+# Local secrets / environment (defense-in-depth; backend/.env is the real one)
+.env
+.env.*
+!.env.example
+
+# Editor / OS noise
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Local security-scan output & tool state
+strix_runs/
+.opencodeignore
+
+# Duplicate source snapshot / archives
 primetrade_code/
+primetrade_code.zip
 *.zip
-frontend/test-results/

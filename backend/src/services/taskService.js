@@ -1,8 +1,9 @@
 const {
   createTask,
   getTasksByUser,
-  updateTask,
-  deleteTask,
+  getTaskByIdForUser,
+  updateTaskForUser,
+  deleteTaskForUser,
 } = require("../models/taskModel");
 
 const create = (title, description, userId) =>
@@ -10,9 +11,11 @@ const create = (title, description, userId) =>
 
 const getAll = (userId) => getTasksByUser(userId);
 
-const update = (id, title, description) =>
-  updateTask(id, title, description);
+const getById = (id, userId) => getTaskByIdForUser(id, userId);
 
-const remove = (id) => deleteTask(id);
+const update = (id, userId, title, description) =>
+  updateTaskForUser(id, userId, title, description);
 
-module.exports = { create, getAll, update, remove };
+const remove = (id, userId) => deleteTaskForUser(id, userId);
+
+module.exports = { create, getAll, getById, update, remove };

@@ -14,8 +14,9 @@ A backend developer internship assignment implementing a scalable REST API with 
 6. [Environment Variables](#6-environment-variables)
 7. [API Endpoints](#7-api-endpoints)
 8. [Authentication Flow](#8-authentication-flow)
-9. [Scalability Notes](#9-scalability-notes)
-10. [Future Improvements](#10-future-improvements)
+9. [Security](#9-security)
+10. [Scalability Notes](#10-scalability-notes)
+11. [Future Improvements](#11-future-improvements)
 
 ---
 
@@ -34,6 +35,9 @@ This project is a full-stack task management application built as part of a back
 - Full **CRUD operations** on a `tasks` resource
 - **Swagger UI** for interactive API documentation
 - A lightweight **React (Vite)** frontend to exercise all API endpoints
+- **Server-side object-level authorization** — task operations are scoped to the authenticated user's identity, preventing cross-user task access and modification
+- **Safe API serialization** — authentication responses expose only intended user fields and never return password hashes
+- **Authentication rate limiting** — login and registration endpoints are protected against excessive repeated requests
 
 ---
 
@@ -64,29 +68,30 @@ This project is a full-stack task management application built as part of a back
 
 ## 3. Project Structure
 
-```
+```text
 PRIMETRADE_ASSIGNMENT/
 ├── backend/
 │   ├── src/
-│   │   ├── server.js           # Entry point — starts HTTP server on PORT
-│   │   ├── app.js              # Express app: CORS, routes, Swagger mount
+│   │   ├── server.js               # Entry point — starts HTTP server on PORT
+│   │   ├── app.js                  # Express app: CORS, routes, Swagger mount
 │   │   ├── config/
-│   │   │   └── db.js           # PostgreSQL connection pool
+│   │   │   └── db.js               # PostgreSQL connection pool
 │   │   ├── controllers/
 │   │   │   ├── authController.js
 │   │   │   └── taskController.js
 │   │   ├── docs/
-│   │   │   └── swagger.js      # Swagger/OpenAPI 3.0 setup
+│   │   │   └── swagger.js          # Swagger/OpenAPI 3.0 setup
 │   │   ├── middleware/
 │   │   │   ├── authMiddleware.js   # JWT verification
 │   │   │   ├── roleMiddleware.js   # Role-based access control
+│   │   │   ├── rateLimitMiddleware.js # Authentication rate limiting
 │   │   │   └── errorMiddleware.js  # Centralized error handling
 │   │   ├── models/
 │   │   │   ├── userModel.js
 │   │   │   └── taskModel.js
 │   │   ├── routes/
 │   │   │   ├── v1/
-│   │   │   │   └── index.js    # Aggregates all v1 routes
+│   │   │   │   └── index.js        # Aggregates all v1 routes
 │   │   │   ├── authRoutes.js
 │   │   │   ├── taskRoutes.js
 │   │   │   └── healthRoutes.js
@@ -94,24 +99,31 @@ PRIMETRADE_ASSIGNMENT/
 │   │   │   ├── authService.js
 │   │   │   └── taskService.js
 │   │   ├── utils/
-│   │   │   └── jwt.js          # Token generation helper
+│   │   │   ├── jwt.js              # Token generation helper
+│   │   │   └── serializers.js      # Safe API response serializers
 │   │   └── validators/
 │   │       ├── authValidator.js
 │   │       └── taskValidator.js
-│   └── package.json
+│   ├── tests/
+│   │   ├── app.test.js             # Authentication, authorization & task tests
+│   │   ├── helpers.js              # Test utilities
+│   │   ├── ratelimit.test.js       # Authentication rate-limit tests
+│   │   └── setup.js                # Test environment setup
+│   ├── package.json
+│   └── package-lock.json
 │
 └── frontend/
     ├── src/
-    │   ├── main.jsx            # React entry point
-    │   ├── App.jsx             # Route definitions
+    │   ├── main.jsx
+    │   ├── App.jsx
     │   ├── api/
-    │   │   └── api.js          # Axios instance with JWT interceptor
+    │   │   └── api.js
     │   ├── context/
-    │   │   └── AuthContext.jsx # Authentication context
+    │   │   └── AuthContext.jsx
     │   ├── pages/
     │   │   ├── Login.jsx
     │   │   ├── Register.jsx
-    │   │   └── Dashboard.jsx   # Protected route — task CRUD
+    │   │   └── Dashboard.jsx
     │   ├── components/
     │   │   ├── TaskForm.jsx
     │   │   └── TaskList.jsx
@@ -119,9 +131,7 @@ PRIMETRADE_ASSIGNMENT/
     │       ├── authService.js
     │       └── taskService.js
     └── package.json
-```
-
----
+    ```
 
 ## 4. Backend Setup
 
@@ -210,6 +220,13 @@ DB_NAME=primetrade
 
 # JWT
 JWT_SECRET=your_super_secret_key_here
+
+# CORS
+CORS_ORIGINS=http://localhost:5173,https://primetrade-assignment-three.vercel.app
+
+# Authentication rate limiting
+LOGIN_RATE_LIMIT_MAX=5
+REGISTER_RATE_LIMIT_MAX=10
 ```
 
 | Variable | Default | Description |
@@ -221,6 +238,9 @@ JWT_SECRET=your_super_secret_key_here
 | `DB_PASSWORD` | `password` | Database password |
 | `DB_NAME` | `primetrade` | Database name |
 | `JWT_SECRET` | `supersecret` | Secret key for signing JWTs — **change in production** |
+| `CORS_ORIGINS` | frontend origin(s) | Comma-separated list of allowed frontend origins |
+| `LOGIN_RATE_LIMIT_MAX` | `5` | Maximum login attempts allowed per IP within the configured window |
+| `REGISTER_RATE_LIMIT_MAX` | `10` | Maximum registration attempts allowed per IP within the configured window |
 
 > ⚠️ Never commit your `.env` file. It is already listed in `.gitignore`.
 
@@ -280,10 +300,11 @@ All endpoints are prefixed with `/api/v1`.
 
 | Method | Endpoint | Auth | Description |
 |---|---|---|---|
-| `GET` | `/tasks` | ✅ | Fetch all tasks for the authenticated user |
-| `POST` | `/tasks` | ✅ | Create a new task |
-| `PUT` | `/tasks/:id` | ✅ | Update an existing task |
-| `DELETE` | `/tasks/:id` | ✅ | Delete a task |
+| `GET` | `/tasks` | ✅ | Fetch all tasks belonging to the authenticated user |
+| `GET` | `/tasks/:id` | ✅ | Fetch a specific task belonging to the authenticated user |
+| `POST` | `/tasks` | ✅ | Create a new task for the authenticated user |
+| `PUT` | `/tasks/:id` | ✅ | Update a task belonging to the authenticated user |
+| `DELETE` | `/tasks/:id` | ✅ | Delete a task belonging to the authenticated user |
 
 **Create Task** — `POST /api/v1/tasks`
 
@@ -332,18 +353,39 @@ Client                         Server
   |<-- 200 { user, token } ------ |  Sign JWT on success
   |                               |
   |-- GET /tasks ---------------> |  authMiddleware: verify JWT
-  |   Authorization: Bearer <JWT> |  Decode user payload
-  |<-- 200 [ ...tasks ] --------- |  Return tasks scoped to user
+  |   Authorization: Bearer <JWT> |  Use authenticated user identity
+  |                               |  Scope query to authenticated user
+  |<-- 200 [ ...tasks ] --------- |  Return tasks scoped to authenticated user
 ```
 
-1. **Registration:** The client submits name, email, and password. The server validates the input, hashes the password with bcrypt (10 salt rounds), stores the user record, and returns a signed JWT alongside the user object.
-2. **Login:** The client submits email and password. The server fetches the user record, verifies the password with bcrypt, and returns a new signed JWT on success.
+1. **Registration:** The client submits name, email, and password. The server validates the input, normalizes the email, hashes the password with bcrypt (10 salt rounds), stores the user record, and returns a signed JWT alongside a safe user representation.
+
+2. **Login:** The client submits email and password. The server normalizes the email, fetches the user record, verifies the password with bcrypt, and returns a signed JWT alongside a safe user representation.
+
 3. **Protected requests:** The client attaches the JWT as a `Bearer` token in the `Authorization` header. The `authMiddleware` verifies the signature and expiry before allowing access to protected routes.
-4. **Role-based access:** The `roleMiddleware` inspects the `role` field in the decoded JWT payload. Routes restricted to `admin` return `403 Forbidden` for regular users.
+
+4. **Object-level authorization:** Task operations use the authenticated user's server-side identity when querying, updating, or deleting tasks. Client-supplied ownership fields are not trusted, preventing users from accessing or modifying another user's tasks.
+
+5. **Role-based access:** The `roleMiddleware` inspects the `role` field in the decoded JWT payload. Routes restricted to `admin` return `403 Forbidden` for regular users.
 
 ---
 
-## 9. Scalability Notes
+## 9. Security
+
+The API separates authentication from authorization:
+
+- **JWT authentication** verifies the identity of the caller before protected routes are accessed.
+- **Object-level authorization** ensures task operations are scoped to the authenticated user's identity.
+- Task ownership is enforced server-side in database queries rather than relying on frontend state or client-supplied `user_id` values.
+- Authentication responses use explicit safe serializers and never expose password hashes.
+- Login and registration endpoints use IP-based rate limiting.
+- CORS is restricted to configured trusted origins.
+- Client-supplied role and ownership fields are not accepted when creating or modifying resources.
+
+Security-sensitive behavior is covered by automated Jest + Supertest regression tests, including cross-user task isolation, JWT validation, mass-assignment attempts, authentication rate limiting, CORS behavior, and sensitive-response checks.
+--- 
+
+## 10. Scalability Notes
 
 | Concern | Current Approach | Scalability Path |
 |---|---|---|
@@ -357,15 +399,16 @@ Client                         Server
 
 ---
 
-## 10. Future Improvements
+## 11. Future Improvements
 
 - [ ] **Refresh tokens** — issue short-lived access tokens with long-lived refresh tokens to reduce exposure
 - [ ] **Email verification** — confirm user email addresses before activating accounts
 - [ ] **Pagination & filtering** — add `limit`, `offset`, and search query parameters to `GET /tasks`
 - [ ] **Task status & priority** — extend the task schema with `status` (todo / in-progress / done) and `priority` fields
 - [ ] **Admin dashboard endpoints** — expose routes restricted to `admin` role for user management
-- [ ] **Rate limiting** — integrate `express-rate-limit` to protect public auth endpoints from brute-force attacks
-- [ ] **Unit & integration tests** — add Jest + Supertest test suite for controllers, services, and routes
+- [x] **Rate limiting** — protect public authentication endpoints from excessive repeated requests using `express-rate-limit`
+- [x] **Unit & integration tests** — Jest + Supertest regression coverage for authentication, authorization, task isolation, CORS, mass assignment, and rate limiting
+- [ ] **Database-level email normalization constraint** — enforce case-insensitive uniqueness for user email addresses at the PostgreSQL level
 - [ ] **Docker Compose** — containerise the backend and PostgreSQL for reproducible local and CI environments
 - [ ] **CI/CD pipeline** — GitHub Actions workflow for lint, test, and deployment on every push
 - [ ] **HTTPS & security headers** — enforce HTTPS in production and add `helmet` for HTTP security headers

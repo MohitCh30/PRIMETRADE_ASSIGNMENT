@@ -7,6 +7,13 @@
 		"_exporter_id": "50506036",
 		"_collection_link": "https://mohitch30-7187296.postman.co/workspace/Mohit-Chaudhary's-Workspace~efeec895-f5be-4f60-8377-09a4390c8a8f/collection/50506036-357176c9-216f-48fd-a86a-fdf4b09256d5?action=share&source=collection_link&creator=50506036"
 	},
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:5000/api/v1",
+			"description": "API base URL. Set per-environment; do NOT commit secrets here."
+		}
+	],
 	"item": [
 		{
 			"name": "Get data",
